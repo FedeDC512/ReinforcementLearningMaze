@@ -1,2 +1,38 @@
-/.venv
-/outputs
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+ENV/
+
+# VSCode
+.vscode/
+
+# Output directories
+auto_outputs/
+outputs/
+
+# Checkpoints, logs, renders
+outputs/checkpoints/
+outputs/eval/
+outputs/renders/
+outputs/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Notebook
+.ipynb_checkpoints/
+
+# Misc
+*.npy
+*.npz
+*.log
+*.tmp
+
+# Ignore legacy maze JSONs
+mazes/*.json

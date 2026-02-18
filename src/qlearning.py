@@ -1,5 +1,13 @@
 import numpy as np
 
+
+def _softmax(logits):
+    """Softmax numerico stabile (senza dipendenza da scipy)."""
+    x = logits - np.max(logits)
+    e = np.exp(x)
+    return e / e.sum()
+
+
 class QLearningAgent:
     def __init__(self, n_states, n_actions,
                  alpha=0.1, gamma=0.99,
@@ -17,10 +25,37 @@ class QLearningAgent:
 
         self.Q = np.zeros((n_states, n_actions))
 
-    def act(self, state):
-        if np.random.rand() < self.epsilon:
-            return np.random.randint(self.n_actions)
-        return np.argmax(self.Q[state])
+    # ── action selection ───────────────────────────────────────
+
+    def act(self, state, policy="eps_greedy", temperature=0.5):
+        """Seleziona azione secondo la policy richiesta."""
+        if policy == "greedy":
+            return int(np.argmax(self.Q[state]))
+        elif policy == "softmax":
+            return self._act_softmax(state, temperature)
+        else:  # eps_greedy (default)
+            if np.random.rand() < self.epsilon:
+                return np.random.randint(self.n_actions)
+            return int(np.argmax(self.Q[state]))
+
+    def _act_softmax(self, state, temperature=0.5):
+        """Softmax stocastico: prob(a|s) = softmax(Q(s,·)/τ)."""
+        temperature = max(temperature, 1e-8)
+        logits = self.Q[state] / temperature
+        probs = _softmax(logits)
+        return int(np.random.choice(self.n_actions, p=probs))
+
+    def act_eval(self, state, policy="eps_greedy",
+                 epsilon_min=0.05, temperature=0.5):
+        """Azione per valutazione (epsilon fissato a epsilon_min)."""
+        if policy == "greedy":
+            return int(np.argmax(self.Q[state]))
+        elif policy == "softmax":
+            return self._act_softmax(state, temperature)
+        else:  # eps_greedy con epsilon = epsilon_min
+            if np.random.rand() < epsilon_min:
+                return np.random.randint(self.n_actions)
+            return int(np.argmax(self.Q[state]))
 
     '''
     def update(self, s, a, r, s_next):
