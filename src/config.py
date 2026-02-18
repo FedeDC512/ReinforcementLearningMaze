@@ -1,0 +1,1 @@
+MAZE_PATH = "mazes/maze_hard.json"
