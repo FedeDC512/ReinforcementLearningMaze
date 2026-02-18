@@ -18,6 +18,8 @@ from pathlib import Path
 # ── Root del repo (pipeline.py è nella root) ──────────────────
 REPO_ROOT = Path(__file__).resolve().parent
 SRC_DIR = REPO_ROOT / "src"
+sys.path.insert(0, str(SRC_DIR))
+from config import DEFAULT_FPS, BACKTRACK_PENALTY  # noqa: E402
 
 # Cartelle output (speculari a config.py)
 OUTPUT_ROOT    = REPO_ROOT / "outputs"
@@ -53,6 +55,7 @@ def parse_args():
     p.add_argument("--epsilon_start",   type=float, default=1.0)
     p.add_argument("--epsilon_min",     type=float, default=0.05)
     p.add_argument("--epsilon_decay",   type=float, default=0.995)
+    p.add_argument("--backtrack_penalty", type=float, default=BACKTRACK_PENALTY)
 
     # ── policy (condiviso train/eval/render) ───────────────────
     p.add_argument("--policy",       type=str, default="eps_greedy",
@@ -66,6 +69,10 @@ def parse_args():
     # ── render overlay ─────────────────────────────────────────
     p.add_argument("--overlay_runs", type=int, default=20)
     p.add_argument("--seed",         type=int, default=None)
+
+    # ── render (condiviso single + overlay) ────────────────────
+    p.add_argument("--cell",         type=int, default=20)
+    p.add_argument("--fps",          type=int, default=DEFAULT_FPS)
 
     # ── skip flags ─────────────────────────────────────────────
     p.add_argument("--skip_train",   action="store_true")
@@ -94,6 +101,7 @@ def main():
             "--policy",          args.policy,
             "--temperature",     str(args.temperature),
             "--maze",            args.maze,
+            "--backtrack_penalty", str(args.backtrack_penalty),
             "--out_dir",         str(CHECKPOINT_DIR),
         ]
         run_step("1/4  Training", cmd)
@@ -114,7 +122,7 @@ def main():
 
     # ── 3) Render single run (best) ───────────────────────────
     if not args.skip_render:
-        out_single = str(RENDER_DIR / "run_best.mp4")
+        out_single = str(RENDER_DIR / f"run_best_{args.policy}.mp4")
         cmd = [
             PYTHON, str(SRC_DIR / "render_run.py"),
             "--q_path",      q_best,
@@ -123,13 +131,15 @@ def main():
             "--epsilon_min", str(args.epsilon_min),
             "--temperature", str(args.temperature),
             "--maze",        args.maze,
+            "--cell",        str(args.cell),
+            "--fps",         str(args.fps),
         ]
         run_step("3/4  Render single run (best)", cmd)
 
     # ── 4) Render overlay (best) ──────────────────────────────
     if not args.skip_render:
         out_overlay = str(RENDER_DIR /
-                          f"run_best_overlay_{args.overlay_runs}runs.mp4")
+                          f"run_best_{args.policy}_overlay_{args.overlay_runs}runs.mp4")
         cmd = [
             PYTHON, str(SRC_DIR / "render_run.py"),
             "--q_path",      q_best,
@@ -139,6 +149,8 @@ def main():
             "--temperature", str(args.temperature),
             "--maze",        args.maze,
             "--runs",        str(args.overlay_runs),
+            "--cell",        str(args.cell),
+            "--fps",         str(args.fps),
         ]
         if args.seed is not None:
             cmd += ["--seed", str(args.seed)]

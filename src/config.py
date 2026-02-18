@@ -34,3 +34,9 @@ CHECKPOINT_EVERY = 500      # salva Q ogni K episodi
 
 # ── Evaluation ─────────────────────────────────────────────────
 EVAL_RUNS       = 20        # N run per checkpoint in evaluate
+# ── Render ─────────────────────────────────────────────────
+DEFAULT_FPS     = 8         # frame per secondo nei video generati
+
+# ── Reward shaping ───────────────────────────────────────────
+BACKTRACK_PENALTY = -0.1   # penalità per azione opposta a quella precedente
+                             # (0 = disattivato)

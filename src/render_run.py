@@ -24,6 +24,10 @@ from maze_loader import load_maze
 from qlearning import QLearningAgent
 from simulate import run_episodes
 
+# ── costanti ──────────────────────────────────────────────────────────────
+MAX_SIDE_PX = 1920  # soglia risoluzione: se il lato maggiore supera questo
+                     # valore, cell viene ridotto automaticamente.
+
 # ── colori base (RGB) ─────────────────────────────────────────────────────
 WHITE = (240, 240, 240)
 BLACK = (20, 20, 20)
@@ -64,17 +68,41 @@ def _draw_maze_base(screen, grid, goal, cell):
                      pygame.Rect(gc * cell, gr * cell, cell, cell))
 
 
+def _effective_cell(grid_h: int, grid_w: int, cell: int) -> int:
+    """Riduce automaticamente cell se la risoluzione supera MAX_SIDE_PX."""
+    max_dim = max(grid_h, grid_w)
+    if max_dim * cell > MAX_SIDE_PX:
+        new_cell = MAX_SIDE_PX // max_dim
+        new_cell = max(new_cell, 2)  # mai sotto 2px
+        print(f"  [auto-scale] cell {cell} → {new_cell}  "
+              f"(griglia {grid_h}×{grid_w}, limite {MAX_SIDE_PX}px)")
+        return new_cell
+    return cell
+
+
+def _make_writer(path: str, W: int, H: int, fps: int) -> cv2.VideoWriter:
+    """Crea un cv2.VideoWriter mp4v."""
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    return cv2.VideoWriter(path, fourcc, fps, (W, H))
+
+
 def _capture_frame(screen):
     """Converte una pygame.Surface in array numpy (H, W, 3) RGB."""
     frame = pygame.surfarray.array3d(screen)   # (W, H, 3)
     return np.transpose(frame, (1, 0, 2)).copy()  # (H, W, 3)
 
 
+def _write_frame(writer: cv2.VideoWriter, frame_rgb: np.ndarray):
+    """Scrive un singolo frame RGB sul writer (converte a BGR)."""
+    writer.write(cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR))
+
+
 # ── single run (legacy) ──────────────────────────────────────────────────
 
 def render_single_run(Q_path, out_video, policy, epsilon_min,
-                      temperature, maze_path, cell=80, fps=6):
-    """Rendering di un singolo run (comportamento originale)."""
+                      temperature, maze_path, cell=80, fps=config.DEFAULT_FPS,
+                      max_seconds: int = 180):
+    """Rendering di un singolo run — streaming diretto su disco."""
     name, grid, start, goal, max_steps = load_maze(maze_path)
     env = MazeEnv(grid, start, goal, max_steps=max_steps)
 
@@ -83,11 +111,14 @@ def render_single_run(Q_path, out_video, policy, epsilon_min,
         agent.Q = np.load(Q_path)
 
     h, w = grid.shape
+    cell = _effective_cell(h, w, cell)
     W, H = w * cell, h * cell
 
     pygame.init()
     screen = pygame.Surface((W, H))
-    frames = []
+    writer = _make_writer(out_video, W, H, fps)
+    last_frame = None
+    frames_written = 0
 
     s = env.reset()
     done = False
@@ -98,7 +129,13 @@ def render_single_run(Q_path, out_video, policy, epsilon_min,
         pygame.draw.circle(screen, BLUE,
                            (ac * cell + cell // 2, ar * cell + cell // 2),
                            cell // 3)
-        frames.append(_capture_frame(screen))
+        last_frame = _capture_frame(screen)
+        # stop if we've already reached the maximum allowed duration
+        if max_seconds is not None and (frames_written / fps) >= max_seconds:
+            print(f"  Interrotto: raggiunto limite durata {max_seconds}s")
+            break
+        _write_frame(writer, last_frame)
+        frames_written += 1
 
         if done:
             break
@@ -110,22 +147,25 @@ def render_single_run(Q_path, out_video, policy, epsilon_min,
                                temperature=temperature)
         s, _, done = env.step(a)
 
+    writer.release()
     pygame.quit()
-    _write_mp4(frames, out_video, W, H, fps)
 
 
 # ── overlay run ──────────────────────────────────────────────────────────
 
 def render_overlay(Q_path, out_video, n_runs, policy, epsilon_min,
-                   temperature, maze_path, cell=80, fps=4, seed=None,
-                   save_png=True):
-    """Rendering progressivo di N run sovrapposti.
+                   temperature, maze_path, cell=80, fps=config.DEFAULT_FPS, seed=None,
+                   save_png=True, max_seconds: int = 180):
+    """Rendering progressivo di N run sovrapposti — streaming su disco.
 
     Per ogni timestep t:
       - disegna la mappa base
       - sovrappone una heatmap cumulativa (quante run hanno visitato
         ciascuna cella fino al passo t)
       - disegna la posizione corrente di ciascun agente come cerchietto
+
+    I frame vengono scritti direttamente nel VideoWriter senza
+    accumularli in RAM.
     """
     name, grid, start, goal, max_steps = load_maze(maze_path)
     env = MazeEnv(grid, start, goal, max_steps=max_steps)
@@ -146,12 +186,15 @@ def render_overlay(Q_path, out_video, n_runs, policy, epsilon_min,
             t.append(t[-1])
 
     h, w = grid.shape
+    cell = _effective_cell(h, w, cell)
     W, H = w * cell, h * cell
 
     pygame.init()
     screen = pygame.Surface((W, H))
     heat_surf = pygame.Surface((W, H), pygame.SRCALPHA)
-    frames = []
+    writer = _make_writer(out_video, W, H, fps)
+    last_frame = None
+    frames_written = 0
 
     # heatmap cumulativa (conteggio visite per cella)
     visit_count = np.zeros((h, w), dtype=np.float32)
@@ -193,15 +236,28 @@ def render_overlay(Q_path, out_video, n_runs, policy, epsilon_min,
             cy = ar * cell + cell // 2 + oy
             pygame.draw.circle(screen, color, (cx, cy), radius)
 
-        frames.append(_capture_frame(screen))
+        last_frame = _capture_frame(screen)
+        # stop if we've already reached the maximum allowed duration
+        if max_seconds is not None and (frames_written / fps) >= max_seconds:
+            print(f"  Interrotto: raggiunto limite durata {max_seconds}s")
+            break
+        _write_frame(writer, last_frame)
+        frames_written += 1
 
-    # ── hold finale (2 secondi) ────────────────────────────────
-    for _ in range(fps * 2):
-        frames.append(frames[-1])
+    # ── hold finale (2 secondi), ma non oltre max_seconds ─────
+    if last_frame is not None:
+        if max_seconds is None:
+            hold_frames = fps * 2
+        else:
+            remaining = max_seconds - (frames_written / fps)
+            hold_frames = min(fps * 2, max(0, int(remaining * fps)))
+        for _ in range(hold_frames):
+            _write_frame(writer, last_frame)
+            frames_written += 1
 
+    writer.release()
     pygame.quit()
 
-    _write_mp4(frames, out_video, W, H, fps)
     print(f"Video overlay salvato: {out_video}  ({n_runs} runs, "
           f"{max_len} steps max)")
 
@@ -256,16 +312,6 @@ def render_overlay(Q_path, out_video, n_runs, policy, epsilon_min,
         print(f"  PNG salvato: {png_path}")
 
 
-# ── mp4 writer ────────────────────────────────────────────────────────────
-
-def _write_mp4(frames, path, W, H, fps):
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(path, fourcc, fps, (W, H))
-    for fr in frames:
-        writer.write(cv2.cvtColor(fr, cv2.COLOR_RGB2BGR))
-    writer.release()
-
-
 # ── CLI ───────────────────────────────────────────────────────────────────
 
 def _resolve_q_path(raw: str | None) -> str | None:
@@ -307,7 +353,9 @@ def parse_args():
                    help="Seed per riproducibilità")
     p.add_argument("--cell", type=int, default=80,
                    help="Dimensione cella in pixel")
-    p.add_argument("--fps", type=int, default=4)
+    p.add_argument("--fps", type=int, default=config.DEFAULT_FPS)
+    p.add_argument("--max_seconds", type=int, default=180,
+                   help="Durata massima del video in secondi (es. 180 = 3 minuti)")
     return p.parse_args()
 
 
@@ -322,7 +370,7 @@ if __name__ == "__main__":
     if args.out is None:
         stem = Path(args.q_path).stem if args.q_path else "random"
         suffix = f"_overlay_{args.runs}runs" if use_overlay else ""
-        args.out = str(render_dir / f"run_{stem}{suffix}.mp4")
+        args.out = str(render_dir / f"run_{stem}_{args.policy}{suffix}.mp4")
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 
     if use_overlay:
@@ -335,6 +383,7 @@ if __name__ == "__main__":
             maze_path=args.maze,
             cell=args.cell,
             fps=args.fps,
+            max_seconds=args.max_seconds,
             seed=args.seed,
         )
     else:
@@ -346,5 +395,6 @@ if __name__ == "__main__":
             maze_path=args.maze,
             cell=args.cell,
             fps=args.fps,
+            max_seconds=None,
         )
         print(f"Video salvato: {args.out}")

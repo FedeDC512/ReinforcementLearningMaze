@@ -57,19 +57,6 @@ class QLearningAgent:
                 return np.random.randint(self.n_actions)
             return int(np.argmax(self.Q[state]))
 
-    '''
-    def update(self, s, a, r, s_next):
-        max_next = np.max(self.Q[s_next])
-
-        # Formula:
-        # Q(s,a) ← Q(s,a)(1-α) + α [ r + γ max Q(s’,a’) - Q(s,a) ]
-
-        self.Q[s, a] = (
-            self.Q[s, a] * (1 - self.alpha)
-            + self.alpha * (r + self.gamma * max_next - self.Q[s, a])
-        )
-    '''
-
     def update(self, s, a, r, s_next, done):
         max_next = 0.0 if done else np.max(self.Q[s_next])
 

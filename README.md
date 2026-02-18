@@ -71,12 +71,15 @@ Esegue in sequenza: **training → evaluation → render single → render overl
 |---|---|---|
 | `--episodes` | 3000 | Episodi di training |
 | `--checkpoint_every` | 500 | Salva checkpoint ogni K episodi |
+| `--backtrack_penalty` | -0.05 | Penalità per azione opposta (0 = off) |
 | `--policy` | eps_greedy | `greedy` / `eps_greedy` / `softmax` |
 | `--epsilon_min` | 0.05 | Epsilon minimo |
 | `--temperature` | 0.5 | Temperatura softmax |
 | `--eval_runs` | 20 | N run per checkpoint in evaluation |
 | `--overlay_runs` | 20 | N run per video overlay |
 | `--seed` | None | Seed per riproducibilità render overlay |
+| `--cell` | 20 | Dimensione cella in pixel (auto-ridotto se > 1920px) |
+| `--fps` | 4 | Frame per secondo |
 | `--maze` | mazes/maze.txt | Path al labirinto (.txt) |
 | `--skip_train` | false | Salta il training |
 | `--skip_eval` | false | Salta la valutazione |
@@ -107,6 +110,7 @@ python src/train.py --maze mazes/maze.txt --episodes 5000 --checkpoint_every 200
 | `--temperature` | 0.5 | Temperatura per softmax |
 | `--checkpoint_every` | 500 | Salva checkpoint ogni K episodi |
 | `--maze` | mazes/maze.txt | Path al file labirinto (.txt) |
+| `--backtrack_penalty` | -0.05 | Penalità per azione opposta alla precedente (0 = off) |
 | `--out_dir` | outputs/checkpoints | Cartella checkpoint |
 
 ### Valutazione (`src/evaluate_checkpoints.py`)
@@ -153,13 +157,18 @@ python src/render_run.py --q_path Q_best.npy --runs 30 --seed 42
 | `--overlay` | false | Forza overlay anche con runs=1 |
 | `--seed` | None | Seed per riproducibilità |
 | `--cell` | 80 | Dimensione cella in pixel |
-| `--fps` | 4 | Frame per secondo |
+| `--fps` | 10 | Frame per secondo |
 
 Nel video overlay:
 - **Heatmap arancione** — celle più visitate si accendono progressivamente
 - **Cerchietti colorati** — posizione di ciascun agente al timestep t
 - **Hold finale** — 2 secondi di pausa sull'ultimo frame
 - **PNG statico** salvato accanto al mp4
+
+> **Nota RAM:** i frame vengono scritti in streaming direttamente su disco
+> (non accumulati in memoria). Per maze grandi (es. 50×50+) usare
+> `--cell 10`–`20`; se il lato maggiore supera 1920 px, `cell` viene
+> ridotto automaticamente.
 
 ## Policy disponibili
 

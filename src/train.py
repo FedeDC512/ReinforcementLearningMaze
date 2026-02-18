@@ -38,13 +38,15 @@ def parse_args():
     p.add_argument("--temperature",    type=float, default=config.TEMPERATURE)
     p.add_argument("--checkpoint_every", type=int, default=config.CHECKPOINT_EVERY)
     p.add_argument("--maze",           type=str,   default=config.MAZE_PATH)
+    p.add_argument("--backtrack_penalty", type=float, default=config.BACKTRACK_PENALTY)
     p.add_argument("--out_dir",        type=str,   default=str(config.CHECKPOINT_DIR))
     return p.parse_args()
 
 
 def train(args):
     name, grid, start, goal, max_steps = load_maze(args.maze)
-    env = MazeEnv(grid, start, goal, max_steps=max_steps)
+    env = MazeEnv(grid, start, goal, max_steps=max_steps,
+                  backtrack_penalty=args.backtrack_penalty)
 
     agent = QLearningAgent(
         env.n_states,
