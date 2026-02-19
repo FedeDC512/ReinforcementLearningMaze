@@ -36,6 +36,12 @@ S 0 0 0 1
 
 ## Quick start
 
+Prima di eseguire i comandi su Windows PowerShell, attiva l'ambiente virtuale:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
 ```bash
 # Dalla root del repo — un solo comando per tutto:
 python pipeline.py
@@ -58,14 +64,19 @@ dalla cartella da cui si lancia il comando.
 ```
 outputs/
   checkpoints/        # Q_epXXXX.npy, Q_best.npy, policy JSON
-  eval/               # paths_<tag>.png, summary_metrics.png
-  renders/            # mp4 e png (single run + overlay)
-  logs/               # steps_curve.png, metriche training
+  eval/               # paths_<tag>_<policy>.png, summary_metrics_<policy>.png
+  renders/            # mp4 e png (single run, overlay, generazioni + legenda)
+  logs/               # steps_curve_<policy>.png, train_<policy>.log,
+                      # eval_<policy>.log, render_<policy>.log
 ```
+
+> **Log persistenti:** ogni script salva automaticamente l'output della console
+> in `outputs/logs/<script>_<policy>.log` (append). I messaggi sono visibili
+> sia in console che nel file di log, anche dopo aver chiuso il terminale.
 
 ## Pipeline (`pipeline.py`)
 
-Esegue in sequenza: **training → evaluation → render single → render overlay**.
+Esegue in sequenza: **training → evaluation → render single → render overlay → render generazioni**.
 
 | Flag | Default | Descrizione |
 |---|---|---|
@@ -77,13 +88,15 @@ Esegue in sequenza: **training → evaluation → render single → render overl
 | `--temperature` | 0.5 | Temperatura softmax |
 | `--eval_runs` | 20 | N run per checkpoint in evaluation |
 | `--overlay_runs` | 20 | N run per video overlay |
-| `--seed` | None | Seed per riproducibilità render overlay |
+| `--gen_runs` | 5 | Agenti per generazione nel video generazioni |
+| `--seed` | None | Seed per riproducibilità render overlay/generazioni |
 | `--cell` | 20 | Dimensione cella in pixel (auto-ridotto se > 1920px) |
 | `--fps` | 4 | Frame per secondo |
 | `--maze` | mazes/maze.txt | Path al labirinto (.txt) |
 | `--skip_train` | false | Salta il training |
 | `--skip_eval` | false | Salta la valutazione |
 | `--skip_render` | false | Salta i render video |
+| `--skip_generations` | false | Salta il render generazioni |
 
 ## Comandi singoli
 
@@ -132,7 +145,8 @@ python src/evaluate_checkpoints.py --policy softmax --temperature 0.3 --eval_run
 
 ### Render video (`src/render_run.py`)
 
-Supporta due modalità: **singolo run** (default) e **overlay** (N run sovrapposti).
+Supporta tre modalità: **singolo run** (default), **overlay** (N run sovrapposti)
+e **generazioni** (tutti i checkpoint in un unico video).
 
 ```bash
 # Singolo run
@@ -143,6 +157,12 @@ python src/render_run.py --q_path outputs/checkpoints/Q_best.npy --runs 50 --pol
 
 # Overlay con seed per riproducibilità
 python src/render_run.py --q_path Q_best.npy --runs 30 --seed 42
+
+# Generazioni: tutti i checkpoint, 5 agenti ciascuno
+python src/render_run.py --generations --runs 5 --policy eps_greedy
+
+# Generazioni con policy softmax
+python src/render_run.py --generations --runs 5 --policy softmax --temperature 0.3
 ```
 
 | Flag | Default | Descrizione |
@@ -153,17 +173,27 @@ python src/render_run.py --q_path Q_best.npy --runs 30 --seed 42
 | `--epsilon_min` | 0.05 | Epsilon per eps_greedy |
 | `--temperature` | 0.5 | Temperatura per softmax |
 | `--maze` | mazes/maze.txt | Path al labirinto |
-| `--runs` | 1 | Numero di run (>1 attiva overlay) |
+| `--runs` | 1 | Numero di run (>1 attiva overlay; usato come agenti/gen in `--generations`) |
 | `--overlay` | false | Forza overlay anche con runs=1 |
+| `--generations` | false | Modalità generazioni: renderizza tutti i checkpoint |
+| `--checkpoint_dir` | outputs/checkpoints | Cartella checkpoint (usata con `--generations`) |
 | `--seed` | None | Seed per riproducibilità |
 | `--cell` | 80 | Dimensione cella in pixel |
 | `--fps` | 10 | Frame per secondo |
+| `--max_seconds` | 180 | Durata massima del video in secondi |
 
 Nel video overlay:
 - **Heatmap arancione** — celle più visitate si accendono progressivamente
 - **Cerchietti colorati** — posizione di ciascun agente al timestep t
 - **Hold finale** — 2 secondi di pausa sull'ultimo frame
 - **PNG statico** salvato accanto al mp4
+
+Nel video generazioni:
+- **Tutti i checkpoint** vengono caricati e simulati (N agenti ciascuno)
+- **Colori per generazione** — palette da rosso (ep0000, non addestrato) a blu (best, addestrato)
+- **Heatmap arancione** — traccia cumulativa identica all'overlay
+- **Legenda separata** — salvata come PNG con sfondo trasparente (`*_legend.png`)
+- **PNG statico** — percorsi sovrapposti colorati per generazione
 
 > **Nota RAM:** i frame vengono scritti in streaming direttamente su disco
 > (non accumulati in memoria). Per maze grandi (es. 50×50+) usare

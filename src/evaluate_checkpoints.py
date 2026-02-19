@@ -21,6 +21,7 @@ from env_maze import MazeEnv
 from maze_loader import load_maze
 from qlearning import QLearningAgent
 from simulate import run_episode, run_episodes
+from logger import setup_logger
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -140,16 +141,18 @@ def parse_args():
 
 def main():
     args = parse_args()
+    log = setup_logger("eval", policy=args.policy)
+
     name, grid, start, goal, max_steps = load_maze(args.maze)
     env = MazeEnv(grid, start, goal, max_steps=max_steps)
 
     checkpoints = discover_checkpoints(args.checkpoint_dir)
     if not checkpoints:
-        print("Nessun checkpoint trovato in", args.checkpoint_dir)
+        log.info("Nessun checkpoint trovato in %s", args.checkpoint_dir)
         return
 
-    print(f"Trovati {len(checkpoints)} checkpoint — "
-          f"policy={args.policy}, eval_runs={args.eval_runs}")
+    log.info(f"Trovati {len(checkpoints)} checkpoint — "
+             f"policy={args.policy}, eval_runs={args.eval_runs}")
 
     eval_dir = Path(args.eval_dir)
     eval_dir.mkdir(parents=True, exist_ok=True)
@@ -177,19 +180,19 @@ def main():
         }
         all_results.append(result)
 
-        print(f"  {tag:>10s}  success={sr:.0%}  "
-              f"avg_steps={avg_steps:.1f}  avg_reward={avg_rew:.2f}")
+        log.info(f"  {tag:>10s}  success={sr:.0%}  "
+                 f"avg_steps={avg_steps:.1f}  avg_reward={avg_rew:.2f}")
 
         # PNG con percorsi sovrapposti
         draw_maze_with_paths(
             grid, start, goal, trajectories,
-            title=f"{tag}  (N={args.eval_runs}, sr={sr:.0%})",
-            save_path=str(eval_dir / f"paths_{tag}.png"))
+            title=f"{tag}  (N={args.eval_runs}, sr={sr:.0%}, {args.policy})",
+            save_path=str(eval_dir / f"paths_{tag}_{args.policy}.png"))
 
     # Summary chart
     generate_summary_table(all_results,
-                           str(eval_dir / "summary_metrics.png"))
-    print(f"\nImmagini salvate in {eval_dir}/")
+                           str(eval_dir / f"summary_metrics_{args.policy}.png"))
+    log.info(f"\nImmagini salvate in {eval_dir}/")
 
 
 if __name__ == "__main__":

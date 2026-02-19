@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 from maze_loader import load_maze
 import config
+from logger import setup_logger
 
 
 def export_policy_json(Q, path_json):
@@ -22,7 +23,7 @@ def save_checkpoint(Q, tag, out_dir):
     out.mkdir(parents=True, exist_ok=True)
     np.save(str(out / f"Q_{tag}.npy"), Q)
     export_policy_json(Q, str(out / f"Q_{tag}_policy.json"))
-    print(f"  ✓ checkpoint salvato: {tag}")
+    # print viene gestito dal chiamante (log)
 
 
 def parse_args():
@@ -44,6 +45,8 @@ def parse_args():
 
 
 def train(args):
+    log = setup_logger("train", policy=args.policy)
+
     name, grid, start, goal, max_steps = load_maze(args.maze)
     env = MazeEnv(grid, start, goal, max_steps=max_steps,
                   backtrack_penalty=args.backtrack_penalty)
@@ -65,6 +68,7 @@ def train(args):
 
     # Checkpoint iniziale (ep 0 = "noob")
     save_checkpoint(agent.Q, "ep0000", str(ckpt_dir))
+    log.info("  ✓ checkpoint salvato: ep0000")
 
     rewards = []
     steps_list = []
@@ -96,6 +100,7 @@ def train(args):
         if ep1 % args.checkpoint_every == 0:
             tag = f"ep{ep1:04d}"
             save_checkpoint(agent.Q, tag, str(ckpt_dir))
+            log.info(f"  ✓ checkpoint salvato: {tag}")
 
         # ── checkpoint "best" (media mobile ultimi 100 ep) ─────
         if len(rewards) >= 100:
@@ -103,14 +108,16 @@ def train(args):
             if avg > best_avg:
                 best_avg = avg
                 save_checkpoint(agent.Q, "best", str(ckpt_dir))
+                print("  ✓ checkpoint salvato: best")
 
         # ── log ────────────────────────────────────────────────
         if ep1 % 500 == 0:
-            print(f"Episode {ep1}/{args.episodes}  steps={steps}  "
-                  f"eps={agent.epsilon:.4f}  reward={total_reward:.2f}")
+            log.info(f"Episode {ep1}/{args.episodes}  steps={steps}  "
+                     f"eps={agent.epsilon:.4f}  reward={total_reward:.2f}")
 
     # Checkpoint finale
     save_checkpoint(agent.Q, f"ep{args.episodes:04d}", str(ckpt_dir))
+    log.info(f"  ✓ checkpoint salvato: ep{args.episodes:04d}")
     np.save(str(ckpt_dir / "Q.npy"), agent.Q)
 
     # ── curva di training ──────────────────────────────────────
@@ -126,11 +133,11 @@ def train(args):
     plt.ylabel("Steps to goal")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(str(log_dir / "steps_curve.png"), dpi=150)
+    plt.savefig(str(log_dir / f"steps_curve_{args.policy}.png"), dpi=150)
     plt.close()
 
-    print(f"\nTraining completato — {args.episodes} episodi, "
-          f"policy={args.policy}, epsilon_min={args.epsilon_min}")
+    log.info(f"\nTraining completato — {args.episodes} episodi, "
+             f"policy={args.policy}, epsilon_min={args.epsilon_min}")
 
 
 if __name__ == "__main__":

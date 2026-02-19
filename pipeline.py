@@ -1,5 +1,5 @@
 """
-Pipeline completa: training → evaluation → render single → render overlay.
+Pipeline completa: training → evaluation → render single → render overlay → render generazioni.
 
 Esegue in sequenza i 4 step chiamando gli script in src/ tramite subprocess.
 Può essere lanciato sia dalla root che da qualsiasi altra cartella.
@@ -70,6 +70,10 @@ def parse_args():
     p.add_argument("--overlay_runs", type=int, default=20)
     p.add_argument("--seed",         type=int, default=None)
 
+    # ── render generazioni ─────────────────────────────────────
+    p.add_argument("--gen_runs",     type=int, default=5,
+                   help="Agenti per generazione nel video generazioni")
+
     # ── render (condiviso single + overlay) ────────────────────
     p.add_argument("--cell",         type=int, default=20)
     p.add_argument("--fps",          type=int, default=DEFAULT_FPS)
@@ -78,6 +82,8 @@ def parse_args():
     p.add_argument("--skip_train",   action="store_true")
     p.add_argument("--skip_eval",    action="store_true")
     p.add_argument("--skip_render",  action="store_true")
+    p.add_argument("--skip_generations", action="store_true",
+                   help="Salta il render generazioni")
 
     return p.parse_args()
 
@@ -134,7 +140,7 @@ def main():
             "--cell",        str(args.cell),
             "--fps",         str(args.fps),
         ]
-        run_step("3/4  Render single run (best)", cmd)
+        run_step("3/5  Render single run (best)", cmd)
 
     # ── 4) Render overlay (best) ──────────────────────────────
     if not args.skip_render:
@@ -154,7 +160,28 @@ def main():
         ]
         if args.seed is not None:
             cmd += ["--seed", str(args.seed)]
-        run_step("4/4  Render overlay (best)", cmd)
+        run_step("4/5  Render overlay (best)", cmd)
+
+    # ── 5) Render generazioni (tutti i checkpoint) ───────────
+    if not args.skip_render and not args.skip_generations:
+        out_gen = str(RENDER_DIR /
+                      f"run_generations_{args.policy}_{args.gen_runs}each.mp4")
+        cmd = [
+            PYTHON, str(SRC_DIR / "render_run.py"),
+            "--generations",
+            "--checkpoint_dir", str(CHECKPOINT_DIR),
+            "--out",         out_gen,
+            "--policy",      args.policy,
+            "--epsilon_min", str(args.epsilon_min),
+            "--temperature", str(args.temperature),
+            "--maze",        args.maze,
+            "--runs",        str(args.gen_runs),
+            "--cell",        str(args.cell),
+            "--fps",         str(args.fps),
+        ]
+        if args.seed is not None:
+            cmd += ["--seed", str(args.seed)]
+        run_step("5/5  Render generazioni (tutti i checkpoint)", cmd)
 
     # ── Riepilogo ──────────────────────────────────────────────
     print(f"\n{'='*60}")
