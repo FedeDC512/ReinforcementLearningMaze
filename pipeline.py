@@ -84,16 +84,97 @@ def parse_args():
     p.add_argument("--skip_render",  action="store_true")
     p.add_argument("--skip_generations", action="store_true",
                    help="Salta il render generazioni")
+    p.add_argument("--all_policies", action="store_true",
+                   help="Esegue eval + render per tutte e 3 le policy "
+                        "(greedy, eps_greedy, softmax)")
 
     return p.parse_args()
+
+
+ALL_POLICIES = ["greedy", "eps_greedy", "softmax"]
+
+
+def _run_eval_and_render(args, policy: str, label_prefix: str = ""):
+    """Esegue eval + render single + overlay + generazioni per una singola policy."""
+    q_best = str(CHECKPOINT_DIR / "Q_best.npy")
+    pfx = f"{label_prefix}  " if label_prefix else ""
+
+    # ── Evaluate checkpoints ───────────────────────────────────
+    if not args.skip_eval:
+        cmd = [
+            PYTHON, str(SRC_DIR / "evaluate_checkpoints.py"),
+            "--policy",         policy,
+            "--epsilon_min",    str(args.epsilon_min),
+            "--temperature",    str(args.temperature),
+            "--eval_runs",      str(args.eval_runs),
+            "--maze",           args.maze,
+            "--checkpoint_dir", str(CHECKPOINT_DIR),
+            "--eval_dir",       str(EVAL_DIR),
+        ]
+        run_step(f"{pfx}Evaluate checkpoints  [{policy}]", cmd)
+
+    # ── Render single run (best) ──────────────────────────────
+    if not args.skip_render:
+        out_single = str(RENDER_DIR / f"run_best_{policy}.mp4")
+        cmd = [
+            PYTHON, str(SRC_DIR / "render_run.py"),
+            "--q_path",      q_best,
+            "--out",         out_single,
+            "--policy",      policy,
+            "--epsilon_min", str(args.epsilon_min),
+            "--temperature", str(args.temperature),
+            "--maze",        args.maze,
+            "--cell",        str(args.cell),
+            "--fps",         str(args.fps),
+        ]
+        run_step(f"{pfx}Render single run  [{policy}]", cmd)
+
+    # ── Render overlay (best) ─────────────────────────────────
+    if not args.skip_render:
+        out_overlay = str(RENDER_DIR /
+                          f"run_best_{policy}_overlay_{args.overlay_runs}runs.mp4")
+        cmd = [
+            PYTHON, str(SRC_DIR / "render_run.py"),
+            "--q_path",      q_best,
+            "--out",         out_overlay,
+            "--policy",      policy,
+            "--epsilon_min", str(args.epsilon_min),
+            "--temperature", str(args.temperature),
+            "--maze",        args.maze,
+            "--runs",        str(args.overlay_runs),
+            "--cell",        str(args.cell),
+            "--fps",         str(args.fps),
+        ]
+        if args.seed is not None:
+            cmd += ["--seed", str(args.seed)]
+        run_step(f"{pfx}Render overlay  [{policy}]", cmd)
+
+    # ── Render generazioni (tutti i checkpoint) ───────────────
+    if not args.skip_render and not args.skip_generations:
+        out_gen = str(RENDER_DIR /
+                      f"run_generations_{policy}_{args.gen_runs}each.mp4")
+        cmd = [
+            PYTHON, str(SRC_DIR / "render_run.py"),
+            "--generations",
+            "--checkpoint_dir", str(CHECKPOINT_DIR),
+            "--out",         out_gen,
+            "--policy",      policy,
+            "--epsilon_min", str(args.epsilon_min),
+            "--temperature", str(args.temperature),
+            "--maze",        args.maze,
+            "--runs",        str(args.gen_runs),
+            "--cell",        str(args.cell),
+            "--fps",         str(args.fps),
+        ]
+        if args.seed is not None:
+            cmd += ["--seed", str(args.seed)]
+        run_step(f"{pfx}Render generazioni  [{policy}]", cmd)
 
 
 def main():
     args = parse_args()
 
-    q_best = str(CHECKPOINT_DIR / "Q_best.npy")
-
-    # ── 1) Training ────────────────────────────────────────────
+    # ── 1) Training (una volta sola, la Q-table è policy-agnostica) ──
     if not args.skip_train:
         cmd = [
             PYTHON, str(SRC_DIR / "train.py"),
@@ -110,78 +191,15 @@ def main():
             "--backtrack_penalty", str(args.backtrack_penalty),
             "--out_dir",         str(CHECKPOINT_DIR),
         ]
-        run_step("1/4  Training", cmd)
+        run_step("Training", cmd)
 
-    # ── 2) Evaluate checkpoints ────────────────────────────────
-    if not args.skip_eval:
-        cmd = [
-            PYTHON, str(SRC_DIR / "evaluate_checkpoints.py"),
-            "--policy",         args.policy,
-            "--epsilon_min",    str(args.epsilon_min),
-            "--temperature",    str(args.temperature),
-            "--eval_runs",      str(args.eval_runs),
-            "--maze",           args.maze,
-            "--checkpoint_dir", str(CHECKPOINT_DIR),
-            "--eval_dir",       str(EVAL_DIR),
-        ]
-        run_step("2/4  Evaluate checkpoints", cmd)
-
-    # ── 3) Render single run (best) ───────────────────────────
-    if not args.skip_render:
-        out_single = str(RENDER_DIR / f"run_best_{args.policy}.mp4")
-        cmd = [
-            PYTHON, str(SRC_DIR / "render_run.py"),
-            "--q_path",      q_best,
-            "--out",         out_single,
-            "--policy",      args.policy,
-            "--epsilon_min", str(args.epsilon_min),
-            "--temperature", str(args.temperature),
-            "--maze",        args.maze,
-            "--cell",        str(args.cell),
-            "--fps",         str(args.fps),
-        ]
-        run_step("3/5  Render single run (best)", cmd)
-
-    # ── 4) Render overlay (best) ──────────────────────────────
-    if not args.skip_render:
-        out_overlay = str(RENDER_DIR /
-                          f"run_best_{args.policy}_overlay_{args.overlay_runs}runs.mp4")
-        cmd = [
-            PYTHON, str(SRC_DIR / "render_run.py"),
-            "--q_path",      q_best,
-            "--out",         out_overlay,
-            "--policy",      args.policy,
-            "--epsilon_min", str(args.epsilon_min),
-            "--temperature", str(args.temperature),
-            "--maze",        args.maze,
-            "--runs",        str(args.overlay_runs),
-            "--cell",        str(args.cell),
-            "--fps",         str(args.fps),
-        ]
-        if args.seed is not None:
-            cmd += ["--seed", str(args.seed)]
-        run_step("4/5  Render overlay (best)", cmd)
-
-    # ── 5) Render generazioni (tutti i checkpoint) ───────────
-    if not args.skip_render and not args.skip_generations:
-        out_gen = str(RENDER_DIR /
-                      f"run_generations_{args.policy}_{args.gen_runs}each.mp4")
-        cmd = [
-            PYTHON, str(SRC_DIR / "render_run.py"),
-            "--generations",
-            "--checkpoint_dir", str(CHECKPOINT_DIR),
-            "--out",         out_gen,
-            "--policy",      args.policy,
-            "--epsilon_min", str(args.epsilon_min),
-            "--temperature", str(args.temperature),
-            "--maze",        args.maze,
-            "--runs",        str(args.gen_runs),
-            "--cell",        str(args.cell),
-            "--fps",         str(args.fps),
-        ]
-        if args.seed is not None:
-            cmd += ["--seed", str(args.seed)]
-        run_step("5/5  Render generazioni (tutti i checkpoint)", cmd)
+    # ── 2-5) Eval + render ─────────────────────────────────────
+    if args.all_policies:
+        for i, pol in enumerate(ALL_POLICIES, 1):
+            label = f"[{i}/{len(ALL_POLICIES)}]"
+            _run_eval_and_render(args, pol, label_prefix=label)
+    else:
+        _run_eval_and_render(args, args.policy)
 
     # ── Riepilogo ──────────────────────────────────────────────
     print(f"\n{'='*60}")

@@ -19,7 +19,7 @@ GAMMA           = 0.99
 
 # ── Epsilon schedule ───────────────────────────────────────────
 EPSILON_START   = 1.0
-EPSILON_MIN     = 0.05      # mai 0 → mantiene esplorazione residua
+EPSILON_MIN     = 0.3      # mai 0 → mantiene esplorazione residua
 EPSILON_DECAY   = 0.995
 
 # ── Softmax policy ─────────────────────────────────────────────

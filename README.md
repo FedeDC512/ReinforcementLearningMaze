@@ -54,6 +54,9 @@ python pipeline.py --maze mazes/maze.txt
 
 # Salta il training (usa checkpoint già salvati):
 python pipeline.py --skip_train --policy softmax --temperature 0.3
+
+# Genera eval + render per tutte e 3 le policy in un colpo solo:
+python pipeline.py --skip_train --all_policies
 ```
 
 Tutti gli output finiscono in `outputs/` nella root del repo, indipendentemente
@@ -84,7 +87,7 @@ Esegue in sequenza: **training → evaluation → render single → render overl
 | `--checkpoint_every` | 500 | Salva checkpoint ogni K episodi |
 | `--backtrack_penalty` | -0.05 | Penalità per azione opposta (0 = off) |
 | `--policy` | eps_greedy | `greedy` / `eps_greedy` / `softmax` |
-| `--epsilon_min` | 0.05 | Epsilon minimo |
+| `--epsilon_min` | 0.3 | Epsilon minimo |
 | `--temperature` | 0.5 | Temperatura softmax |
 | `--eval_runs` | 20 | N run per checkpoint in evaluation |
 | `--overlay_runs` | 20 | N run per video overlay |
@@ -97,6 +100,7 @@ Esegue in sequenza: **training → evaluation → render single → render overl
 | `--skip_eval` | false | Salta la valutazione |
 | `--skip_render` | false | Salta i render video |
 | `--skip_generations` | false | Salta il render generazioni |
+| `--all_policies` | false | Esegue eval + render per tutte e 3 le policy (greedy, eps_greedy, softmax) |
 
 ## Comandi singoli
 
@@ -117,7 +121,7 @@ python src/train.py --maze mazes/maze.txt --episodes 5000 --checkpoint_every 200
 | `--alpha` | 0.1 | Learning rate |
 | `--gamma` | 0.99 | Discount factor |
 | `--epsilon_start` | 1.0 | Epsilon iniziale |
-| `--epsilon_min` | 0.05 | Epsilon minimo (mai 0) |
+| `--epsilon_min` | 0.3 | Epsilon minimo (mai 0) |
 | `--epsilon_decay` | 0.995 | Decay moltiplicativo per epsilon |
 | `--policy` | eps_greedy | `greedy` / `eps_greedy` / `softmax` |
 | `--temperature` | 0.5 | Temperatura per softmax |
@@ -136,7 +140,7 @@ python src/evaluate_checkpoints.py --policy softmax --temperature 0.3 --eval_run
 | Flag | Default | Descrizione |
 |---|---|---|
 | `--policy` | eps_greedy | Policy di valutazione |
-| `--epsilon_min` | 0.05 | Epsilon per eps_greedy in eval |
+| `--epsilon_min` | 0.3 | Epsilon per eps_greedy in eval |
 | `--temperature` | 0.5 | Temperatura per softmax in eval |
 | `--eval_runs` | 20 | Numero di run per checkpoint |
 | `--maze` | mazes/maze.txt | Path al labirinto |
@@ -170,7 +174,7 @@ python src/render_run.py --generations --runs 5 --policy softmax --temperature 0
 | `--q_path` | None | Path al file Q .npy (None = random) |
 | `--out` | auto | Path output mp4 (auto in outputs/renders/) |
 | `--policy` | eps_greedy | `greedy` / `eps_greedy` / `softmax` |
-| `--epsilon_min` | 0.05 | Epsilon per eps_greedy |
+| `--epsilon_min` | 0.3 | Epsilon per eps_greedy |
 | `--temperature` | 0.5 | Temperatura per softmax |
 | `--maze` | mazes/maze.txt | Path al labirinto |
 | `--runs` | 1 | Numero di run (>1 attiva overlay; usato come agenti/gen in `--generations`) |
