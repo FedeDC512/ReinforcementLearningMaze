@@ -1,4 +1,4 @@
-# prova-finale
+# Prova Finale: Reinforcement Learning Maze
 
 Reinforcement Learning su labirinto a griglia con Q-Learning.
 
