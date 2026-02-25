@@ -1,6 +1,7 @@
 # Prova Finale: Reinforcement Learning Maze
 
 Reinforcement Learning su labirinto a griglia con Q-Learning.
+Link presentazione: https://www.canva.com/design/DAHB3hVhFB4/ehSY1bypDz1JlfR3bpG5ZA/view?utm_content=DAHB3hVhFB4&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h2f8ae7e27b
 
 ## Requisiti
 
